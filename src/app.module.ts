@@ -5,6 +5,7 @@ import { APP_GUARD, APP_INTERCEPTOR, APP_FILTER } from '@nestjs/core';
 import { AuthModule } from './auth/auth.module.js';
 import { UsersModule } from './users/users.module.js';
 import { ProjectsModule } from './projects/projects.module.js';
+import { ProjectMembersModule } from './project-members/project-members.module.js';
 import { TasksModule } from './tasks/tasks.module.js';
 import { CommonModule } from './common/common.module.js';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard.js';
@@ -52,6 +53,7 @@ import { LoggerMiddleware } from './common/middleware/logger.middleware.js';
     AuthModule,
     UsersModule,
     ProjectsModule,
+    ProjectMembersModule,
     TasksModule,
   ],
   providers: [

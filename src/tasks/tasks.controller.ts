@@ -36,8 +36,9 @@ export class TasksController {
   async create(
     @Param('id', ParseUUIDPipe) projectId: string,
     @Body() createTaskDto: CreateTaskDto,
+    @CurrentUser() user: User,
   ) {
-    return this.tasksService.create(projectId, createTaskDto);
+    return this.tasksService.create(projectId, createTaskDto, user);
   }
 
   @Get('projects/:id/tasks')
@@ -49,12 +50,12 @@ export class TasksController {
 
   @Patch('tasks/:id')
   @ApiOperation({
-    summary: 'Update a task (assignee or admin only)',
+    summary: 'Update a task (creator, assignee, or admin only)',
   })
   @ApiResponse({ status: 200, description: 'Task successfully updated' })
   @ApiResponse({
     status: 403,
-    description: 'Forbidden - only assignee or admin',
+    description: 'Forbidden - only creator, assignee, or admin',
   })
   async update(
     @Param('id', ParseUUIDPipe) id: string,
@@ -66,12 +67,12 @@ export class TasksController {
 
   @Delete('tasks/:id')
   @ApiOperation({
-    summary: 'Delete a task (assignee or admin only)',
+    summary: 'Delete a task (creator, assignee, or admin only)',
   })
   @ApiResponse({ status: 200, description: 'Task successfully deleted' })
   @ApiResponse({
     status: 403,
-    description: 'Forbidden - only assignee or admin',
+    description: 'Forbidden - only creator, assignee, or admin',
   })
   async remove(
     @Param('id', ParseUUIDPipe) id: string,

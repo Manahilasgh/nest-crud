@@ -8,11 +8,13 @@ import {
   OneToMany,
   JoinColumn,
   Relation,
+  Index,
 } from 'typeorm';
 import { User } from '../../users/entities/user.entity.js';
 import { Task } from '../../tasks/entities/task.entity.js';
 
 @Entity('projects')
+@Index(['ownerId', 'title'], { unique: true })
 export class Project {
   @PrimaryGeneratedColumn('uuid')
   id: string;

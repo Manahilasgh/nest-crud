@@ -57,6 +57,13 @@ export class Task {
   @Column({ nullable: true })
   assigneeId: string;
 
+  @Column()
+  createdById: string;
+
+  @ManyToOne(() => User, { eager: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'createdById' })
+  createdBy: User;
+
   @CreateDateColumn()
   createdAt: Date;
 

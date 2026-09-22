@@ -36,3 +36,10 @@ lerna-debug.log*
 
 # Environment
 .env
+
+# md files
+AUTHORIZATION_IMPROVEMENTS.md
+IMPLEMENTATION_SUMMARY.md
+RESET_DATABASE.md
+SEED_INSTRUCTIONS.md
+MIGRATION_FIX.md

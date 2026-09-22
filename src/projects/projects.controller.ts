@@ -43,10 +43,10 @@ export class ProjectsController {
   }
 
   @Get()
-  @ApiOperation({ summary: 'Get all projects' })
-  @ApiResponse({ status: 200, description: 'Returns all projects' })
-  async findAll() {
-    return this.projectsService.findAll();
+  @ApiOperation({ summary: 'Get all projects (owned or member)' })
+  @ApiResponse({ status: 200, description: 'Returns all projects user has access to' })
+  async findAll(@CurrentUser() user: User) {
+    return this.projectsService.findAll(user);
   }
 
   @Get(':id')
@@ -58,10 +58,9 @@ export class ProjectsController {
   }
 
   @Delete(':id')
-  @Roles(UserRole.ADMIN)
-  @ApiOperation({ summary: 'Delete a project (admin only)' })
+  @ApiOperation({ summary: 'Delete a project (owner or admin only)' })
   @ApiResponse({ status: 200, description: 'Project successfully deleted' })
-  @ApiResponse({ status: 403, description: 'Forbidden - admin only' })
+  @ApiResponse({ status: 403, description: 'Forbidden - owner or admin only' })
   @ApiResponse({ status: 404, description: 'Project not found' })
   async remove(
     @Param('id', ParseUUIDPipe) id: string,

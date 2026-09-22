@@ -1,9 +1,11 @@
+import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from '../app.module.js';
 import { UsersService } from '../users/users.service.js';
 import { ProjectsService } from '../projects/projects.service.js';
 import { TasksService } from '../tasks/tasks.service.js';
 import { AuthService } from '../auth/auth.service.js';
+import { ProjectMembersService } from '../project-members/project-members.service.js';
 import { UserRole } from '../users/entities/user.entity.js';
 import { TaskStatus } from '../tasks/entities/task.entity.js';
 import { Logger } from '@nestjs/common';
@@ -78,6 +80,23 @@ async function seed() {
     );
     logger.log(`Created project: ${project2.title}`);
 
+    // Add members to projects
+    logger.log('Adding members to projects...');
+    
+    const projectMembersService = app.get(ProjectMembersService);
+    
+    // Add member1 to project1 (admin's project)
+    await projectMembersService.addMember(project1.id, member1.id);
+    logger.log(`Added ${member1.email} to ${project1.title}`);
+    
+    // Add member2 to project1 (admin's project)
+    await projectMembersService.addMember(project1.id, member2.id);
+    logger.log(`Added ${member2.email} to ${project1.title}`);
+    
+    // Add member2 to project2 (member1's project)
+    await projectMembersService.addMember(project2.id, member2.id);
+    logger.log(`Added ${member2.email} to ${project2.title}`);
+
     // Create tasks
     logger.log('Creating tasks...');
 
@@ -87,7 +106,7 @@ async function seed() {
       status: TaskStatus.IN_PROGRESS,
       dueDate: '2026-10-01T00:00:00.000Z',
       assigneeId: member1.id,
-    });
+    }, admin);
     logger.log(`Created task: ${task1.title}`);
 
     const task2 = await tasksService.create(project1.id, {
@@ -96,7 +115,7 @@ async function seed() {
       status: TaskStatus.TODO,
       dueDate: '2026-10-15T00:00:00.000Z',
       assigneeId: member2.id,
-    });
+    }, admin);
     logger.log(`Created task: ${task2.title}`);
 
     const task3 = await tasksService.create(project2.id, {
@@ -105,7 +124,7 @@ async function seed() {
       status: TaskStatus.DONE,
       dueDate: '2026-09-20T00:00:00.000Z',
       assigneeId: member1.id,
-    });
+    }, member1);
     logger.log(`Created task: ${task3.title}`);
 
     const task4 = await tasksService.create(project2.id, {
@@ -114,7 +133,7 @@ async function seed() {
       status: TaskStatus.TODO,
       dueDate: '2026-11-01T00:00:00.000Z',
       assigneeId: member2.id,
-    });
+    }, member1);
     logger.log(`Created task: ${task4.title}`);
 
     logger.log('✅ Database seed completed successfully!');

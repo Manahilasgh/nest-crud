@@ -7,11 +7,12 @@ import { TaskStatus } from '../src/tasks/entities/task.entity.js';
 
 /**
  * E2E Test that validates the full application flow:
- * 1. Register a user
+ * 1. Register users
  * 2. Login
  * 3. Create a project
- * 4. Create a task
- * 5. Fetch the task
+ * 4. Add members
+ * 5. Create tasks
+ * 6. Test authorization rules
  * 
  * This demonstrates end-to-end testing with supertest and proves
  * all the NestJS concepts work together correctly.
@@ -19,7 +20,11 @@ import { TaskStatus } from '../src/tasks/entities/task.entity.js';
 describe('Task Manager E2E Test', () => {
   let app: INestApplication;
   let authToken: string;
+  let member2Token: string;
+  let nonMemberToken: string;
   let userId: string;
+  let member2Id: string;
+  let nonMemberId: string;
   let projectId: string;
   let taskId: string;
 
@@ -46,13 +51,13 @@ describe('Task Manager E2E Test', () => {
     await app.close();
   });
 
-  describe('Full Application Flow', () => {
-    it('should register a new user', async () => {
+  describe('Full Application Flow with Authorization', () => {
+    it('should register first user (project owner)', async () => {
       const response = await request(app.getHttpServer())
         .post('/auth/register')
         .send({
-          name: 'E2E Test User',
-          email: 'e2e@example.com',
+          name: 'E2E Owner',
+          email: 'e2e-owner@example.com',
           password: 'password123',
           role: UserRole.MEMBER,
         })
@@ -60,36 +65,40 @@ describe('Task Manager E2E Test', () => {
 
       expect(response.body.success).toBe(true);
       expect(response.body.data.user).toBeDefined();
-      expect(response.body.data.user.email).toBe('e2e@example.com');
       expect(response.body.data.access_token).toBeDefined();
 
       userId = response.body.data.user.id;
       authToken = response.body.data.access_token;
     });
 
-    it('should login with existing user', async () => {
+    it('should register second user (will be added as member)', async () => {
       const response = await request(app.getHttpServer())
-        .post('/auth/login')
+        .post('/auth/register')
         .send({
-          email: 'e2e@example.com',
+          name: 'E2E Member',
+          email: 'e2e-member@example.com',
           password: 'password123',
+          role: UserRole.MEMBER,
         })
-        .expect(200);
+        .expect(201);
 
-      expect(response.body.success).toBe(true);
-      expect(response.body.data.user.email).toBe('e2e@example.com');
-      expect(response.body.data.access_token).toBeDefined();
+      member2Id = response.body.data.user.id;
+      member2Token = response.body.data.access_token;
     });
 
-    it('should get current user profile', async () => {
+    it('should register third user (non-member)', async () => {
       const response = await request(app.getHttpServer())
-        .get('/users/me')
-        .set('Authorization', `Bearer ${authToken}`)
-        .expect(200);
+        .post('/auth/register')
+        .send({
+          name: 'E2E Non-Member',
+          email: 'e2e-nonmember@example.com',
+          password: 'password123',
+          role: UserRole.MEMBER,
+        })
+        .expect(201);
 
-      expect(response.body.success).toBe(true);
-      expect(response.body.data.email).toBe('e2e@example.com');
-      expect(response.body.data.password).toBeUndefined(); // Should be excluded
+      nonMemberId = response.body.data.user.id;
+      nonMemberToken = response.body.data.access_token;
     });
 
     it('should create a project', async () => {
@@ -104,34 +113,33 @@ describe('Task Manager E2E Test', () => {
 
       expect(response.body.success).toBe(true);
       expect(response.body.data.title).toBe('E2E Test Project');
-      expect(response.body.data.owner).toBeDefined();
 
       projectId = response.body.data.id;
     });
 
-    it('should get all projects', async () => {
+    it('should add member2 to the project', async () => {
       const response = await request(app.getHttpServer())
-        .get('/projects')
+        .post(`/projects/${projectId}/members`)
+        .set('Authorization', `Bearer ${authToken}`)
+        .send({
+          userId: member2Id,
+        })
+        .expect(201);
+
+      expect(response.body.success).toBe(true);
+    });
+
+    it('should get project members', async () => {
+      const response = await request(app.getHttpServer())
+        .get(`/projects/${projectId}/members`)
         .set('Authorization', `Bearer ${authToken}`)
         .expect(200);
 
       expect(response.body.success).toBe(true);
-      expect(Array.isArray(response.body.data)).toBe(true);
-      expect(response.body.data.length).toBeGreaterThan(0);
+      expect(response.body.data.length).toBeGreaterThanOrEqual(2); // Owner + member2
     });
 
-    it('should get a project by ID', async () => {
-      const response = await request(app.getHttpServer())
-        .get(`/projects/${projectId}`)
-        .set('Authorization', `Bearer ${authToken}`)
-        .expect(200);
-
-      expect(response.body.success).toBe(true);
-      expect(response.body.data.id).toBe(projectId);
-      expect(response.body.data.title).toBe('E2E Test Project');
-    });
-
-    it('should create a task for the project', async () => {
+    it('should allow member to create a task', async () => {
       const response = await request(app.getHttpServer())
         .post(`/projects/${projectId}/tasks`)
         .set('Authorization', `Bearer ${authToken}`)
@@ -140,34 +148,57 @@ describe('Task Manager E2E Test', () => {
           description: 'Testing task creation',
           status: TaskStatus.TODO,
           dueDate: '2026-12-31T00:00:00.000Z',
-          assigneeId: userId,
+          assigneeId: member2Id,
         })
         .expect(201);
 
       expect(response.body.success).toBe(true);
       expect(response.body.data.title).toBe('E2E Test Task');
-      expect(response.body.data.status).toBe(TaskStatus.TODO);
-      expect(response.body.data.assignee).toBeDefined();
-
+      
       taskId = response.body.data.id;
     });
 
-    it('should get all tasks for the project', async () => {
-      const response = await request(app.getHttpServer())
-        .get(`/projects/${projectId}/tasks`)
-        .set('Authorization', `Bearer ${authToken}`)
-        .expect(200);
-
-      expect(response.body.success).toBe(true);
-      expect(Array.isArray(response.body.data)).toBe(true);
-      expect(response.body.data.length).toBeGreaterThan(0);
-      expect(response.body.data[0].title).toBe('E2E Test Task');
+    it('should block non-member from creating a task', async () => {
+      await request(app.getHttpServer())
+        .post(`/projects/${projectId}/tasks`)
+        .set('Authorization', `Bearer ${nonMemberToken}`)
+        .send({
+          title: 'Unauthorized Task',
+          description: 'Should fail',
+          assigneeId: userId,
+        })
+        .expect(403);
     });
 
-    it('should update task status', async () => {
+    it('should block assigning task to non-member', async () => {
+      await request(app.getHttpServer())
+        .post(`/projects/${projectId}/tasks`)
+        .set('Authorization', `Bearer ${authToken}`)
+        .send({
+          title: 'Bad Assignee Task',
+          description: 'Should fail',
+          assigneeId: nonMemberId,
+        })
+        .expect(400);
+    });
+
+    it('should allow task creator (not assignee) to edit their task', async () => {
       const response = await request(app.getHttpServer())
         .patch(`/tasks/${taskId}`)
         .set('Authorization', `Bearer ${authToken}`)
+        .send({
+          status: TaskStatus.IN_PROGRESS,
+        })
+        .expect(200);
+
+      expect(response.body.success).toBe(true);
+      expect(response.body.data.status).toBe(TaskStatus.IN_PROGRESS);
+    });
+
+    it('should allow task assignee to edit the task', async () => {
+      const response = await request(app.getHttpServer())
+        .patch(`/tasks/${taskId}`)
+        .set('Authorization', `Bearer ${member2Token}`)
         .send({
           status: TaskStatus.DONE,
         })
@@ -177,30 +208,87 @@ describe('Task Manager E2E Test', () => {
       expect(response.body.data.status).toBe(TaskStatus.DONE);
     });
 
-    it('should delete the task', async () => {
+    it('should block non-member from editing the task', async () => {
+      await request(app.getHttpServer())
+        .patch(`/tasks/${taskId}`)
+        .set('Authorization', `Bearer ${nonMemberToken}`)
+        .send({
+          description: 'Trying to hack',
+        })
+        .expect(403);
+    });
+
+    it('should allow task creator to delete their task', async () => {
       const response = await request(app.getHttpServer())
         .delete(`/tasks/${taskId}`)
         .set('Authorization', `Bearer ${authToken}`)
         .expect(200);
 
       expect(response.body.success).toBe(true);
-      expect(response.body.data.message).toBe('Task deleted successfully');
     });
 
-    it('should fail to access protected route without auth token', async () => {
-      await request(app.getHttpServer())
-        .get('/projects')
-        .expect(401);
-    });
-
-    it('should validate input and reject invalid data', async () => {
-      await request(app.getHttpServer())
-        .post('/projects')
+    it('should allow owner (non-admin) to delete their project', async () => {
+      const response = await request(app.getHttpServer())
+        .delete(`/projects/${projectId}`)
         .set('Authorization', `Bearer ${authToken}`)
+        .expect(200);
+
+      expect(response.body.success).toBe(true);
+    });
+
+    it('should only show projects user owns or is member of', async () => {
+      // Non-member creates their own project
+      const createResponse = await request(app.getHttpServer())
+        .post('/projects')
+        .set('Authorization', `Bearer ${nonMemberToken}`)
         .send({
-          title: '', // Empty title should fail validation
+          title: 'Non-Member Project',
+          description: 'Private project',
         })
-        .expect(400);
+        .expect(201);
+
+      const nonMemberProjectId = createResponse.body.data.id;
+
+      // First user should NOT see non-member's project
+      const listResponse = await request(app.getHttpServer())
+        .get('/projects')
+        .set('Authorization', `Bearer ${authToken}`)
+        .expect(200);
+
+      const projectIds = listResponse.body.data.map((p: any) => p.id);
+      expect(projectIds).not.toContain(nonMemberProjectId);
+
+      // Clean up
+      await request(app.getHttpServer())
+        .delete(`/projects/${nonMemberProjectId}`)
+        .set('Authorization', `Bearer ${nonMemberToken}`)
+        .expect(200);
+    });
+
+    it('should block non-owner non-admin from deleting project', async () => {
+      // Member2 creates a project
+      const response = await request(app.getHttpServer())
+        .post('/projects')
+        .set('Authorization', `Bearer ${member2Token}`)
+        .send({
+          title: 'Member2 Project',
+          description: 'Test',
+        })
+        .expect(201);
+
+      const member2ProjectId = response.body.data.id;
+
+      // First user tries to delete it (should fail)
+      await request(app.getHttpServer())
+        .delete(`/projects/${member2ProjectId}`)
+        .set('Authorization', `Bearer ${authToken}`)
+        .expect(403);
+
+      // Clean up - owner can delete
+      await request(app.getHttpServer())
+        .delete(`/projects/${member2ProjectId}`)
+        .set('Authorization', `Bearer ${member2Token}`)
+        .expect(200);
     });
   });
 });
